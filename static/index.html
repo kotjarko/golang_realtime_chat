@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>chatTest</title>
+</head>
+<body>
+chat
+<div id="auth" style="">
+    enter name:
+    <form id="loginForm">
+        <input type="text" name="login" id="login" value="abyrvalg">
+        <button type="submit">
+            Отправить
+        </button>
+    </form>
+</div>
+<div id="list" style="display: none;">
+    users list
+    <div id="list_container"></div>
+</div>
+<div id="chat" style="display: none;">
+    chat with <div id="chat_name"></div>
+    <form id="chatForm">
+        <input type="text" name="message" id="message">
+        <button type="submit">
+            Отправить
+        </button>
+    </form>
+    <div id="chat_container"></div>
+</div>
+</body>
+
+<script
+        src="https://code.jquery.com/jquery-3.3.1.min.js"
+        integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+        crossorigin="anonymous">
+</script>
+
+<script>
+    $(function(){
+        var socket = new WebSocket(((window.location.protocol === "https:") ? "wss://" : "ws://") + window.location.host + "/chat");
+
+        socket.onopen = function() {
+            console.log("Соединение установлено.");
+        };
+
+        socket.onclose = function(event) {
+            if (event.wasClean) {
+                console.log('Соединение закрыто чисто');
+            } else {
+                console.log('Обрыв соединения');
+            }
+            console.log('Код: ' + event.code + ' причина: ' + event.reason);
+        };
+
+        socket.onmessage = function(event) {
+            console.log("Получены данные " + event.data);
+            if(event.data === "ERROR") {
+                alert("Произошла ошибка")
+            } else if(event.data === "SENT") {
+                // TODO
+            } else if(event.data === "AUTH OK") {
+                $("#auth").hide();
+                $("#list").show();
+                socket.send("{\"action\": \"list\"}");
+            } else {
+                var data = JSON.parse(event.data)
+                var $chat = $("#chat_container");
+                if(typeof(data.dt) != 'undefined') {
+                    console.log(data)
+                    $chat.prepend("<div class='message'><i>"
+                        + data.dt.substr(0, 19)
+                        + "<\/i> <b>" + data.author + "</b> " + data.text + " </div>")
+
+                } else if(typeof(data.from) != 'undefined') {
+                    // chat
+                    $("#list").hide();
+                    $("#chat").show();
+                    $("#chat_name").text(data.to);
+
+                    $.each(data.messages,function(index, value){
+                        let author = (value.author == data.to_id) ? data.to : data.from;
+                        $chat.append("<div class='message'><i>"
+                            + index.substr(0, 19)
+                            + "<\/i> <b>" + author + "</b> " + value.text + " </div>")
+                    });
+                } else {
+                    // list
+                    $.each(data,function(index, value){
+                        $("#list_container").append(
+                            "<button class='open_chat' data-id='"+ index +"'>" + value + "</button><br><br>"
+                        );
+                    });
+                    $(".open_chat").click(function (event) {
+                        socket.send("{\"action\": \"join\", \"user\":\"" +event.target.dataset.id + "\"}");
+                    });
+                }
+            }
+        };
+
+        socket.onerror = function(error) {
+            console.log("Ошибка " + error.message);
+        };
+
+        $("#loginForm").submit(function(event) {
+            var request = "{\"action\": \"auth\", \"name\": \"" + $("#login").val() + "\"}"
+            socket.send(request);
+            event.preventDefault();
+        });
+        $("#chatForm").submit(function(event) {
+            var request = "{\"action\": \"send\", \"text\": \"" + $("#message").val() + "\"}"
+            socket.send(request);
+            event.preventDefault();
+        });
+    });
+
+</script>
+</html>
